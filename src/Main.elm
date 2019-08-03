@@ -27,6 +27,7 @@ type Msg
     = HandleLoginResp (Result Http.Error String)
     | SetLoginPlayerId String 
     | SetLoginPassword String
+    | LoginSubmit
 
 
 type alias Model =
@@ -44,7 +45,7 @@ init _ =
       , loginPlayerId = ""
       , loginPassword = ""
       }
-    , BE.postApiLogin (BE.DbPlayer "user1" "pass") HandleLoginResp
+    , Cmd.none
     )
 
 
@@ -62,9 +63,15 @@ update action model =
         SetLoginPlayerId playerId ->
             ( { model | loginPlayerId = playerId }
             , Cmd.none )
+        
         SetLoginPassword pwd ->
             ( { model | loginPassword = pwd }
             , Cmd.none )
+        
+        LoginSubmit ->
+            ( { model | backendError = Nothing, backendOK = True }
+            , BE.postApiLogin (BE.DbPlayer model.loginPlayerId model.loginPassword) HandleLoginResp)
+
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
@@ -73,19 +80,9 @@ subscriptions model =
 
 view : Model -> H.Html Msg
 view model =
-    -- H.div []
-    --     [ H.h1 [] [ H.text "Hello World" ]
-    --     , H.text
-    --         (if model.backendOK then
-    --             "Login Worked. All good!"
-
-    --          else
-    --             "Login Failed. Check network tab."
-    --         )
-    --     ]
     H.div [ HA.class "login-box" ]
         [ H.h1 [] [ H.text "Login" ]
-        , H.form []
+        , H.form [ HE.onSubmit LoginSubmit ]
             [ H.input
                 [ HA.placeholder "Player Id"
                 , HAA.ariaLabel "Player ID"
@@ -101,6 +98,15 @@ view model =
                 , HA.value model.loginPassword
                 ]
                 []
+            , H.h3 []
+                [ 
+                (if model.backendOK 
+                 then
+                    H.span [] [H.text "Login Worked. All good!"] 
+                 else
+                    H.span [HA.class "err"] [H.text "Login Failed. Check network tab."]
+                )
+                ]
             , H.button
                 [ HA.class "btn primary" ]
                 [ H.text "Login" ]
