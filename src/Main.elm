@@ -43,9 +43,10 @@ type alias Model =
     , registerPlayerId : String
     , registerPassword : String
     , registerPasswordAgain : String
-    , registerBackendOK : Bool
-    , registerBackendError : Maybe String
-    , registerError : Maybe String
+    , token : Maybe String
+    -- , registerBackendOK : Bool
+    , registerValidationIssues : List String
+    -- , registerError : Maybe String
     }
 
 
@@ -58,9 +59,10 @@ init _ =
       , registerPlayerId = ""
       , registerPassword = ""
       , registerPasswordAgain = ""
-      , registerBackendOK = True
-      , registerBackendError = Nothing
-      , registerError = Nothing
+      , token = Nothing
+    --   , registerBackendOK = True
+      , registerValidationIssues = []
+    --   , registerError = Nothing
       }
     , Cmd.none
     )
@@ -105,24 +107,34 @@ update action model =
             case validateRegisterDbPlayer model of
                 Ok dbPlayer ->
                     ( { model 
-                        | registerError = Nothing 
-                        , registerBackendOK = True 
-                    }, BE.postApiPlayers (BE.DbPlayer model.registerPlayerId model.registerPassword) HandleRegisterResp
+                        | registerValidationIssues = []
+                        , token = Nothing 
+                      }
+                    , BE.postApiPlayers (BE.DbPlayer model.registerPlayerId model.registerPassword) HandleRegisterResp
                     )
                 Err errlist ->
                     ( { model 
-                        | registerError = Just (String.concat errlist)
-                        , registerBackendOK = False 
-                    }, Cmd.none
+                        | registerValidationIssues =errlist
+                        , token = Nothing 
+                      }
+                    , Cmd.none
                     )
             
         HandleRegisterResp (Ok r) ->
-            ( { model | registerBackendOK = True, registerBackendError = Nothing }
-            , Cmd.none )
+            ( { model 
+                | registerValidationIssues = []
+                , token = Nothing 
+              }
+              , Cmd.none 
+            )
 
         HandleRegisterResp (Err err) ->
-            ( { model | registerBackendError = Just "Backend registration failed", registerBackendOK = False }
-            , Cmd.none )
+            ( { model 
+                | registerValidationIssues = [ "Backend registration failed" ]
+                , token = Nothing 
+              }
+              , Cmd.none 
+            )
 
 
 subscriptions : Model -> Sub Msg
@@ -193,11 +205,16 @@ view model =
                     []
                 , H.h3 []
                     [ 
-                    (if model.registerBackendOK 
+                    (if model.registerValidationIssues == [] 
                     then
                         H.span [] [H.text "Register Worked. All good!"] 
                     else
-                        H.span [HA.class "err"] [H.text "Register Failed. Check network tab."]
+                        H.span [HA.class "err"] 
+                        [ H.text "Register Failed. Check network tab."
+                        , H.br [] []
+                        , H.text 
+                            ( String.concat (List.map (\x -> String.append x " ") model.registerValidationIssues ) )
+                        ]
                     )
                     ]
                 , H.button
