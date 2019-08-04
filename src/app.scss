@@ -205,6 +205,18 @@ a {
   }
 }
 
+.register-box {
+  width: 25em;
+  margin: auto;
+  padding: 1em;
+  input {
+    width: 100%;
+  }
+  button {
+    margin: 1em 0;
+  }
+}
+
 .chatbox-container {
   width: 40em;
 
