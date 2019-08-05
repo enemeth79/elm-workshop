@@ -36,33 +36,27 @@ type Msg
 
 
 type alias Model =
-    { backendOK : Bool
-    , backendError : Maybe String
+    { loginToken : RemoteData String String
     , loginPlayerId : String
     , loginPassword : String
     , registerPlayerId : String
     , registerPassword : String
     , registerPasswordAgain : String
-    , token : Maybe String
-    -- , registerBackendOK : Bool
+    , registerToken : RemoteData String String
     , registerValidationIssues : List String
-    -- , registerError : Maybe String
     }
 
 
 init : flags -> ( Model, Cmd Msg )
 init _ =
-    ( { backendOK = True
-      , backendError = Nothing
+    ( { loginToken = RemoteData.NotAsked
       , loginPlayerId = ""
       , loginPassword = ""
       , registerPlayerId = ""
       , registerPassword = ""
       , registerPasswordAgain = ""
-      , token = Nothing
-    --   , registerBackendOK = True
       , registerValidationIssues = []
-    --   , registerError = Nothing
+      , registerToken = RemoteData.NotAsked
       }
     , Cmd.none
     )
@@ -71,13 +65,13 @@ init _ =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update action model =
     case action of
-        HandleLoginResp (Ok r) ->
-            ( { model | backendOK = True, backendError = Nothing }
-            , Cmd.none )
-
-        HandleLoginResp (Err err) ->
-            ( { model | backendError = Just "Backend login failed", backendOK = False }
-            , Cmd.none )
+        HandleLoginResp result ->
+            ( { model 
+                | loginToken = 
+                    RemoteData.fromResult result |> RemoteData.mapError Utils.httpErrorToStr
+              }
+              , Cmd.none 
+            )
 
         SetLoginPlayerId playerId ->
             ( { model | loginPlayerId = playerId }
@@ -88,7 +82,7 @@ update action model =
             , Cmd.none )
         
         LoginSubmit ->
-            ( { model | backendError = Nothing, backendOK = True }
+            ( { model | loginToken = RemoteData.Loading }
             , BE.postApiLogin (BE.DbPlayer model.loginPlayerId model.loginPassword) HandleLoginResp)
 
         SetregisterPlayerId playerId ->
@@ -108,30 +102,22 @@ update action model =
                 Ok dbPlayer ->
                     ( { model 
                         | registerValidationIssues = []
-                        , token = Nothing 
+                        , registerToken = RemoteData.Loading 
                       }
                     , BE.postApiPlayers (BE.DbPlayer model.registerPlayerId model.registerPassword) HandleRegisterResp
                     )
                 Err errlist ->
                     ( { model 
-                        | registerValidationIssues =errlist
-                        , token = Nothing 
+                        | registerValidationIssues = errlist
+                        , registerToken = RemoteData.Failure (String.concat errlist)
                       }
                     , Cmd.none
                     )
             
-        HandleRegisterResp (Ok r) ->
+        HandleRegisterResp result ->
             ( { model 
                 | registerValidationIssues = []
-                , token = Nothing 
-              }
-              , Cmd.none 
-            )
-
-        HandleRegisterResp (Err err) ->
-            ( { model 
-                | registerValidationIssues = [ "Backend registration failed" ]
-                , token = Nothing 
+                , registerToken = RemoteData.fromResult result |> RemoteData.mapError Utils.httpErrorToStr
               }
               , Cmd.none 
             )
@@ -163,13 +149,11 @@ view model =
                     ]
                     []
                 , H.h3 []
-                    [ 
-                    (if model.backendOK 
-                    then
-                        H.span [] [H.text "Login Worked. All good!"] 
-                    else
-                        H.span [HA.class "err"] [H.text "Login Failed. Check network tab."]
-                    )
+                    [ case model.loginToken of
+                        RemoteData.NotAsked  -> H.span [] [H.text ""] 
+                        RemoteData.Loading   -> H.span [] [H.text "Loading..."] 
+                        RemoteData.Failure e -> H.span [HA.class "err"] [H.text ("Login Failed. " ++ e) ]
+                        RemoteData.Success a -> H.span [] [H.text ("Welcome " ++ model.loginPlayerId) ] 
                     ]
                 , H.button
                     [ HA.class "btn primary" ]
@@ -204,18 +188,18 @@ view model =
                     ]
                     []
                 , H.h3 []
-                    [ 
-                    (if model.registerValidationIssues == [] 
-                    then
-                        H.span [] [H.text "Register Worked. All good!"] 
-                    else
-                        H.span [HA.class "err"] 
-                        [ H.text "Register Failed. Check network tab."
-                        , H.br [] []
-                        , H.text 
-                            ( String.concat (List.map (\x -> String.append x " ") model.registerValidationIssues ) )
-                        ]
-                    )
+                    [ if model.registerValidationIssues == [] 
+                        then
+                            case model.registerToken of
+                                RemoteData.NotAsked  -> H.span [] [H.text ""] 
+                                RemoteData.Loading   -> H.span [] [H.text "Loading..."] 
+                                RemoteData.Failure e -> H.span [HA.class "err"] [H.text ("Registration Failed. " ++ e) ]
+                                RemoteData.Success a -> H.span [] [H.text ("Welcome new player " ++ model.registerPlayerId) ] 
+                        else
+                            H.span [HA.class "err"] 
+                            [ H.text 
+                                ( String.concat (List.map (\x -> String.append x " ") model.registerValidationIssues ) )
+                            ]
                     ]
                 , H.button
                     [ HA.class "btn primary" ]
